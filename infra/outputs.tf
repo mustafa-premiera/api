@@ -30,3 +30,15 @@ output "api_key_value" {
   value     = aws_api_gateway_api_key.cloudfront.value
   sensitive = true
 }
+
+output "app_url" {
+  value = local.app_url
+}
+
+output "frontend_bucket" {
+  value = aws_s3_bucket.frontend.id
+}
+
+output "distribution_id" {
+  value = aws_cloudfront_distribution.main.id
+}
