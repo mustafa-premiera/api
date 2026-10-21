@@ -1,0 +1,7 @@
+{
+  "apiBase": "/api",
+  "authority": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_SxWqCxQTR",
+  "clientId": "68bv77jnlt1rm0f8iv1q14151o",
+  "cognitoDomain": "https://manara-todo-wc1huz.auth.us-east-1.amazoncognito.com",
+  "redirectUri": "http://localhost:5173/"
+}
