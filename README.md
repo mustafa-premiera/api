@@ -17,7 +17,7 @@ Source for the diagram: [`docs/architecture/diagram.py`](docs/architecture/diagr
 5. Watch **Recent activity (DynamoDB Streams)** on the page. Each change appears there a moment later. It is written by a separate Lambda that consumes the table's stream, so seeing it proves Streams works end to end.
 6. Sign up a second user in a private window. It sees an empty list: each user only ever sees their own items, including through the API cache.
 
-Direct calls to the API Gateway URL (`https://wlolz7mdl1.execute-api.us-east-1.amazonaws.com/api`) are rejected, because they lack the API key that only CloudFront injects. Only the CloudFront URL works.
+Direct calls to the API Gateway URL (`https://wlolz7mdl1.execute-api.us-east-1.amazonaws.com/api`) are rejected unless they carry both a valid ID token and the API key. The key is only known to CloudFront, so use the CloudFront URL (see the status codes under API Gateway below).
 
 ## Request path
 
@@ -77,7 +77,16 @@ Verify: Console, WAF & Shield, Web ACLs (scope: Global/CloudFront), `manara-todo
 - Usage plan `manara-todo-cloudfront`: 20 requests/s rate, 40 burst, 10,000 requests/day quota. Method throttling is the same 20/40.
 - Cache cluster 0.5 GB, TTL 60 s, on `GET /todos` and `GET /todos/{id}`. The cache key includes the `Authorization` header, and `status` / `v` (or `id`) parameters.
 - X-Ray tracing and JSON access logs (including `xrayTraceId` and the user's `sub`) are on, retained 14 days.
-- Verify: Console, API Gateway, `manara-todo`, Stages, `api` (Settings shows the cache and X-Ray), Authorizers, Usage Plans. Direct call without key: `curl -i https://wlolz7mdl1.execute-api.us-east-1.amazonaws.com/api/todos` returns 403.
+- Verify: Console, API Gateway, `manara-todo`, Stages, `api` (Settings shows the cache and X-Ray), Authorizers, Usage Plans. Direct calls to the `execute-api` URL behave as follows (measured on the live API):
+
+  | Token | API key | Result |
+  |---|---|---|
+  | none | none | 401 (the Cognito authorizer runs first) |
+  | none | yes | 401 |
+  | valid ID token | none | 403 Forbidden |
+  | valid ID token | yes | 200 |
+
+  To see the 403, sign in to the app, copy the `id_token` from the browser's sessionStorage (DevTools, Application, Session Storage, key starting `oidc.user:`), then run `curl -i -H "Authorization: <id_token>" https://wlolz7mdl1.execute-api.us-east-1.amazonaws.com/api/todos`. The key itself is never exposed to browsers; only CloudFront can add it.
 
 ### Cognito
 - User pool `manara-todo`: email is the username, self sign-up on, email verified with a code (Cognito default sender), password minimum 8 with upper case, lower case and digit.
@@ -134,7 +143,7 @@ Access patterns:
 
 - **ID token, not access token.** The Cognito User Pools authorizer validates ID tokens directly and puts the verified claims (including `sub`) in the request context. Access tokens only work with the authorizer when scopes are configured, and carry no email claims. The Lambda trusts `requestContext.authorizer.claims.sub` and never a client-supplied user id.
 - **Per-user isolation, including the cache.** Every DynamoDB query is keyed on the caller's `sub`. The API Gateway cache key includes the `Authorization` header, so two users never share a cached response. The frontend adds a `v` query parameter that it bumps after each write, so a user sees their own change immediately without invalidating the cache.
-- **API key known only to CloudFront.** All methods require an API key and the key is injected by CloudFront as an origin header, so the browser never sees it. Anyone calling the `execute-api` URL directly gets 403, which forces all traffic through CloudFront and therefore through WAF.
+- **API key known only to CloudFront.** All methods require an API key and the key is injected by CloudFront as an origin header, so the browser never sees it. Even a user with a valid ID token who calls the `execute-api` URL directly gets 403 Forbidden (and 401 without a token), because only CloudFront holds the key. That forces all traffic through CloudFront and therefore through WAF.
 - **Least-privilege IAM.** Separate read, write and stream roles, each scoped to specific tables and actions (see above).
 - **Private S3.** Public access is blocked and only this CloudFront distribution can read the bucket (OAC).
 - **Secrets.** No secrets in the repo. Terraform state and `terraform.tfvars` are gitignored.
@@ -159,7 +168,7 @@ Both default to `true`. Destroy the stack when the review is over.
 
 ## Deploy
 
-Prerequisites: Terraform 1.10+, AWS CLI v2 (logged in to the target account), Node 20+, Python 3.12.
+Prerequisites: Terraform 1.5+, AWS CLI v2 (logged in to the target account), Node 20+, Python 3.12.
 
 ```bash
 cp infra/terraform.tfvars.example infra/terraform.tfvars   # set alert_email
@@ -187,7 +196,7 @@ The dev server runs on http://localhost:5173/ (an allowed Cognito callback) and 
 cd backend && .venv/bin/pytest
 ```
 
-Create the venv first with `python3.12 -m venv backend/.venv && backend/.venv/bin/pip install -r backend/requirements-dev.txt`. To regenerate the diagram: `brew install graphviz && pip install -r docs/architecture/requirements.txt && python docs/architecture/diagram.py`.
+Create the venv first with `python3.12 -m venv backend/.venv && backend/.venv/bin/pip install -r backend/requirements-dev.txt`. To regenerate the diagram: `brew install graphviz && python3.12 -m venv docs/architecture/.venv && docs/architecture/.venv/bin/pip install -r docs/architecture/requirements.txt && docs/architecture/.venv/bin/python docs/architecture/diagram.py` (the venv is gitignored).
 
 ## Repo layout
 
