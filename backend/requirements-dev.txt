@@ -1,0 +1,4 @@
+boto3
+moto[dynamodb]>=5
+pytest
+aws-lambda-powertools[tracer]>=3.17
