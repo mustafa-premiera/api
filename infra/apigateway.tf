@@ -119,9 +119,11 @@ resource "aws_api_gateway_deployment" "main" {
   triggers = {
     redeployment = sha1(jsonencode([
       [for r in [aws_api_gateway_resource.todos, aws_api_gateway_resource.todo_id, aws_api_gateway_resource.activity] : r.id],
-      aws_api_gateway_authorizer.cognito.id,
-      { for k, m in aws_api_gateway_method.api : k => [m.id, m.http_method, m.authorization, m.api_key_required, local.api_request_parameters[k]] },
-      { for k, i in aws_api_gateway_integration.api : k => [i.id, i.type, i.integration_http_method, aws_lambda_function.api[k].invoke_arn, contains(local.api_cached_routes, k) ? keys(local.api_request_parameters[k]) : []] },
+      [aws_api_gateway_authorizer.cognito.id, aws_api_gateway_authorizer.cognito.type, aws_api_gateway_authorizer.cognito.identity_source, aws_api_gateway_authorizer.cognito.provider_arns],
+      { for k, m in aws_api_gateway_method.api : k => [m.id, m.http_method, m.authorization, m.authorizer_id, m.authorization_scopes, m.api_key_required, local.api_request_parameters[k]] },
+      { for k, i in aws_api_gateway_integration.api : k => [i.id, i.type, i.integration_http_method, aws_lambda_function.api[k].invoke_arn, contains(local.api_cached_routes, k) ? keys(local.api_request_parameters[k]) : [], i.timeout_milliseconds, i.passthrough_behavior, i.content_handling, i.credentials, i.request_templates] },
+      # Catch-all: any edit to this file redeploys the stage.
+      filesha1("${path.module}/apigateway.tf"),
     ]))
   }
 
@@ -129,7 +131,7 @@ resource "aws_api_gateway_deployment" "main" {
     create_before_destroy = true
   }
 
-  depends_on = [aws_api_gateway_integration.api]
+  depends_on = [aws_api_gateway_integration.api, aws_lambda_permission.apigw]
 }
 
 resource "aws_cloudwatch_log_group" "api_access" {
