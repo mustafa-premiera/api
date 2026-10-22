@@ -14,7 +14,8 @@ from diagrams.aws.devtools import XRay
 from diagrams.aws.management import Cloudwatch
 from diagrams.aws.network import APIGateway, CloudFront
 from diagrams.aws.security import Cognito, WAF
-from diagrams.aws.storage import S3
+from diagrams.aws.storage import S3, SimpleStorageServiceS3Bucket
+from diagrams.onprem.ci import GithubActions
 from diagrams.onprem.client import Users
 
 out = Path(__file__).resolve().parent / "architecture"
@@ -61,6 +62,13 @@ with Diagram(
     xray = XRay("X-Ray\nactive tracing")
     logs = Cloudwatch("CloudWatch Logs\n(14-day retention)")
     budget = Budgets("AWS Budgets\n$10/month alert")
+
+    with Cluster("CI/CD"):
+        gha = GithubActions("GitHub Actions\nPR: plan | main: apply")
+        tfstate = SimpleStorageServiceS3Bucket("Terraform state (S3)")
+
+    gha >> Edge(label="OIDC → deploy role\nterraform apply", color="royalblue") >> apigw
+    gha >> Edge(style="dashed", color="royalblue") >> tfstate
 
     users >> Edge(label="HTTPS") >> cf
     waf >> Edge(label="attached\nweb ACL", style="dashed", color="firebrick") >> cf
