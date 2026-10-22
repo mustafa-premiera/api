@@ -156,7 +156,7 @@ GitHub Actions checks every pull request and deploys `main` with Terraform. No A
 3. `terraform apply -auto-approve` updates the infrastructure.
 4. `scripts/deploy_frontend.sh` builds the SPA, syncs it to S3 and invalidates CloudFront. The app URL is written to the job summary.
 
-Deploys are serialized (`concurrency: deploy-main`, never cancelled mid-apply). Until the AWS account is verified for CloudFront, deploy runs stop at the CloudFront distribution; the apply fails at the CloudFront distribution; resources that do not depend on it are still applied.
+Deploys are serialized (`concurrency: deploy-main`, never cancelled mid-apply). Until the AWS account is verified for CloudFront, the deploy apply fails at the CloudFront distribution; resources that do not depend on it are still applied.
 
 ### OIDC roles
 
