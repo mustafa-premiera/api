@@ -24,16 +24,20 @@ jobs:
       id-token: write
       contents: read
     env:
-      TF_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
+      TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
       TF_VAR_enable_waf: ${{ vars.ENABLE_WAF || 'false' }}
       TF_VAR_enable_api_cache: ${{ vars.ENABLE_API_CACHE || 'false' }}
       DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
     steps:
       - uses: actions/checkout@v4
-      - name: Require deploy role variable
+      - name: Require deploy role variable and alert email secret
         run: |
           if [ -z "$DEPLOY_ROLE_ARN" ]; then
             echo "::error::Repository variable AWS_DEPLOY_ROLE_ARN is not set"
+            exit 1
+          fi
+          if [ -z "$TF_VAR_alert_email" ]; then
+            echo "::error::Repository secret ALERT_EMAIL is not set"
             exit 1
           fi
       - uses: actions/setup-node@v4
