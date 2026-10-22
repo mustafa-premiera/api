@@ -1,6 +1,6 @@
 variable "aws_profile" {
   type    = string
-  default = "manara-free"
+  default = null
 }
 
 variable "region" {
@@ -16,6 +16,12 @@ variable "project" {
 variable "alert_email" {
   type        = string
   description = "Email address that receives budget alerts."
+  sensitive   = true
+
+  validation {
+    condition     = can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.alert_email))
+    error_message = "alert_email must be an email address."
+  }
 }
 
 variable "enable_waf" {
