@@ -1,6 +1,6 @@
 variable "aws_profile" {
   type    = string
-  default = "manara-free"
+  default = null
 }
 
 variable "region" {
