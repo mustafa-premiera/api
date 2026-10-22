@@ -162,8 +162,8 @@ Deploys are serialized (`concurrency: deploy-main`, never cancelled mid-apply). 
 
 | Role | Trusted subject | Permissions |
 |---|---|---|
-| `arn:aws:iam::<account-id>:role/manara-todo-gha-plan` | `repo:mustafa-premiera/api:pull_request` | `ReadOnlyAccess` plus read (`s3:GetObject`, `s3:ListBucket`) on the state bucket |
-| `arn:aws:iam::<account-id>:role/manara-todo-gha-deploy` | `repo:mustafa-premiera/api:ref:refs/heads/main` | `AdministratorAccess` |
+| `arn:aws:iam::<account-id>:role/manara-todo-gha-plan` | `repo:mustafa-premiera@343404294/api@1428567674:pull_request` (and the legacy `repo:mustafa-premiera/api:pull_request`) | `ReadOnlyAccess` plus read (`s3:GetObject`, `s3:ListBucket`) on the state bucket |
+| `arn:aws:iam::<account-id>:role/manara-todo-gha-deploy` | `repo:mustafa-premiera@343404294/api@1428567674:ref:refs/heads/main` (and the legacy `repo:mustafa-premiera/api:ref:refs/heads/main`) | `AdministratorAccess` |
 
 Both require the audience `sts.amazonaws.com`. The deploy role is `AdministratorAccess` because Terraform manages IAM roles, WAF, CloudFront, API Gateway and more; the safety comes from the trust policy (only workflows running on `main` can assume it) and the provider's account guard, which refuses any other account. The plan role cannot write state or locks, which is why PR plans use `-lock=false`.
 
