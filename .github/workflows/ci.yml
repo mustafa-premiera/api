@@ -6,8 +6,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
-  id-token: write
 
 jobs:
   checks:
@@ -18,17 +16,28 @@ jobs:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    concurrency:
+      group: plan-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     env:
-      TF_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
+      TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
       TF_VAR_enable_waf: ${{ vars.ENABLE_WAF || 'false' }}
       TF_VAR_enable_api_cache: ${{ vars.ENABLE_API_CACHE || 'false' }}
       PLAN_ROLE_ARN: ${{ vars.AWS_PLAN_ROLE_ARN }}
     steps:
       - uses: actions/checkout@v4
-      - name: Require plan role variable
+      - name: Require plan role variable and alert email secret
         run: |
           if [ -z "$PLAN_ROLE_ARN" ]; then
             echo "::error::Repository variable AWS_PLAN_ROLE_ARN is not set"
+            exit 1
+          fi
+          if [ -z "$TF_VAR_alert_email" ]; then
+            echo "::error::Repository secret ALERT_EMAIL is not set"
             exit 1
           fi
       - uses: hashicorp/setup-terraform@v3
@@ -60,7 +69,7 @@ jobs:
               plan = plan.slice(0, max);
               note = '\n\n_Plan truncated to 60000 characters; see the workflow run logs for the full plan._';
             }
-            const body = `${marker}\n### Terraform plan\n\n**${summary}**\n\n<details><summary>Show plan</summary>\n\n\`\`\`text\n${plan}\n\`\`\`\n\n</details>${note}`;
+            const body = `${marker}\n### Terraform plan\n\n**${summary}**\n\n<details><summary>Show plan</summary>\n\n\`\`\`\`text\n${plan}\n\`\`\`\`\n\n</details>${note}`;
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
             const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 });

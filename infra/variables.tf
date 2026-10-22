@@ -16,6 +16,11 @@ variable "project" {
 variable "alert_email" {
   type        = string
   description = "Email address that receives budget alerts."
+
+  validation {
+    condition     = can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.alert_email))
+    error_message = "alert_email must be an email address."
+  }
 }
 
 variable "enable_waf" {

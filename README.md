@@ -156,7 +156,7 @@ GitHub Actions checks every pull request and deploys `main` with Terraform. No A
 3. `terraform apply -auto-approve` updates the infrastructure.
 4. `scripts/deploy_frontend.sh` builds the SPA, syncs it to S3 and invalidates CloudFront. The app URL is written to the job summary.
 
-Deploys are serialized (`concurrency: deploy-main`, never cancelled mid-apply). Until the AWS account is verified for CloudFront, deploy runs stop at the CloudFront distribution; everything before it is applied.
+Deploys are serialized (`concurrency: deploy-main`, never cancelled mid-apply). Until the AWS account is verified for CloudFront, deploy runs stop at the CloudFront distribution; the apply fails at the CloudFront distribution; resources that do not depend on it are still applied.
 
 ### OIDC roles
 
@@ -169,23 +169,23 @@ Both require the audience `sts.amazonaws.com`. The deploy role is `Administrator
 
 Terraform state lives in `s3://manara-todo-tfstate-<account-id>/infra/terraform.tfstate` with native S3 locking (`use_lockfile`, no DynamoDB table).
 
-### Repository variables
+### Repository variables and secrets
 
-Set these under Settings, Secrets and variables, Actions, Variables.
+Set the variables under Settings, Secrets and variables, Actions, Variables, and `ALERT_EMAIL` under the Secrets tab (a secret so the address is masked and never appears in public PR plan comments). `ENABLE_WAF` and `ENABLE_API_CACHE` must be exactly `true` or `false` when set.
 
 | Variable | Purpose |
 |---|---|
 | `AWS_PLAN_ROLE_ARN` | ARN of `manara-todo-gha-plan` |
 | `AWS_DEPLOY_ROLE_ARN` | ARN of `manara-todo-gha-deploy` |
-| `ALERT_EMAIL` | Budget alert address (`alert_email`) |
+| `ALERT_EMAIL` (secret) | Budget alert address (`alert_email`); required, the workflows fail if unset |
 | `ENABLE_WAF` | `true` or `false` (`enable_waf`); defaults to `false` in CI when unset |
 | `ENABLE_API_CACHE` | `true` or `false` (`enable_api_cache`); defaults to `false` in CI when unset |
 
-The PR plan reflects only these repository variables and the defaults, not your local `terraform.tfvars`, so it can differ from what you see running `plan` locally. Note that the deploy applies the same values: with `ENABLE_WAF` and `ENABLE_API_CACHE` unset, CI deploys without WAF and the cache.
+The PR plan reflects only these repository variables, the `ALERT_EMAIL` secret and the defaults, not your local `terraform.tfvars`, so it can differ from what you see running `plan` locally. Note that the deploy applies the same values: with `ENABLE_WAF` and `ENABLE_API_CACHE` unset, CI deploys without WAF and the cache.
 
 ### One-time bootstrap
 
-The `bootstrap/` stack creates the state bucket, the GitHub OIDC provider and the two roles. It uses local state (gitignored) and is run once by hand:
+The `bootstrap/` stack creates the state bucket, the GitHub OIDC provider and the two roles. It uses local state (`bootstrap/terraform.tfstate`, gitignored) and is run once by hand:
 
 ```bash
 export AWS_PROFILE=<your-profile>
@@ -203,7 +203,7 @@ Finally set the repository variables above from the bootstrap outputs.
 
 ### Branch protection
 
-Recommended: Settings, Branches, add a rule for `main` that requires a pull request and the status checks from the `checks` jobs (`backend-tests`, `frontend-build`, `terraform-static`) before merging.
+Recommended: Settings, Branches, add a rule for `main` that requires a pull request and the status checks from the `checks` jobs (`checks / backend-tests`, `checks / frontend-build`, `checks / terraform-static`) before merging.
 
 ## Security notes
 
@@ -212,7 +212,7 @@ Recommended: Settings, Branches, add a rule for `main` that requires a pull requ
 - **API key known only to CloudFront.** All methods require an API key and the key is injected by CloudFront as an origin header, so the browser never sees it. Even a user with a valid ID token who calls the `execute-api` URL directly gets 403 Forbidden (and 401 without a token), because only CloudFront holds the key. That forces all traffic through CloudFront and therefore through WAF.
 - **Least-privilege IAM.** Separate read, write and stream roles, each scoped to specific tables and actions (see above).
 - **Private S3.** Public access is blocked and only this CloudFront distribution can read the bucket (OAC).
-- **Secrets.** No secrets in the repo. Terraform state and `terraform.tfvars` are gitignored.
+- **Secrets.** No secrets in the repo. `terraform.tfvars` and the local bootstrap state are gitignored; the infra state lives in the private S3 state bucket.
 
 ## Cost
 
