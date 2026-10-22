@@ -1,8 +1,9 @@
 data "archive_file" "lambda" {
-  type        = "zip"
-  source_dir  = "${path.module}/../backend/src"
-  output_path = "${path.module}/build/lambda.zip"
-  excludes    = ["__pycache__", "**/__pycache__", "**/*.pyc"]
+  type             = "zip"
+  source_dir       = "${path.module}/../backend/src"
+  output_path      = "${path.module}/build/lambda.zip"
+  output_file_mode = "0644"
+  excludes         = ["__pycache__", "**/__pycache__", "**/*.pyc"]
 }
 
 resource "aws_cloudwatch_log_group" "api" {
