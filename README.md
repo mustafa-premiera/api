@@ -2,6 +2,9 @@
 
 A per-user to-do app built for the Manara "Becoming a Solutions Architect" Project 3. It runs entirely on AWS serverless services and is deployed with Terraform.
 
+[![CI](https://github.com/mustafa-premiera/api/actions/workflows/ci.yml/badge.svg)](https://github.com/mustafa-premiera/api/actions/workflows/ci.yml)
+[![Deploy](https://github.com/mustafa-premiera/api/actions/workflows/deploy.yml/badge.svg)](https://github.com/mustafa-premiera/api/actions/workflows/deploy.yml)
+
 **Live app:** https://<cloudfront-domain>/ <!-- LIVE_URL -->
 
 ![Architecture](docs/architecture/architecture.png)
@@ -139,6 +142,69 @@ Access patterns:
 - Budget `manara-todo-monthly`: $10 per month, emails at 50% and 100% of actual spend.
 - Verify: Console, CloudWatch, Log groups; Billing, Budgets.
 
+## CI/CD
+
+GitHub Actions checks every pull request and deploys `main` with Terraform. No AWS keys are stored in GitHub: workflows assume IAM roles through OIDC.
+
+**Pull request** (`.github/workflows/ci.yml`):
+1. Checks run first (shared `checks.yml`): backend `pytest`, frontend build, `terraform fmt -check` and `validate` for `infra/` and `bootstrap/`.
+2. The `plan` job assumes the plan role, runs `terraform plan -lock=false` against the remote state, and posts the plan as a single PR comment (updated on each push). It is skipped for PRs from forks.
+
+**Push to `main`** (`.github/workflows/deploy.yml`, also runnable by hand):
+1. The same checks run.
+2. The `deploy` job assumes the deploy role and verifies the remote state object exists.
+3. `terraform apply -auto-approve` updates the infrastructure.
+4. `scripts/deploy_frontend.sh` builds the SPA, syncs it to S3 and invalidates CloudFront. The app URL is written to the job summary.
+
+Deploys are serialized (`concurrency: deploy-main`, never cancelled mid-apply). Until the AWS account is verified for CloudFront, deploy runs stop at the CloudFront distribution; everything before it is applied.
+
+### OIDC roles
+
+| Role | Trusted subject | Permissions |
+|---|---|---|
+| `arn:aws:iam::<account-id>:role/manara-todo-gha-plan` | `repo:mustafa-premiera/api:pull_request` | `ReadOnlyAccess` plus read (`s3:GetObject`, `s3:ListBucket`) on the state bucket |
+| `arn:aws:iam::<account-id>:role/manara-todo-gha-deploy` | `repo:mustafa-premiera/api:ref:refs/heads/main` | `AdministratorAccess` |
+
+Both require the audience `sts.amazonaws.com`. The deploy role is `AdministratorAccess` because Terraform manages IAM roles, WAF, CloudFront, API Gateway and more; the safety comes from the trust policy (only workflows running on `main` can assume it) and the provider's account guard, which refuses any other account. The plan role cannot write state or locks, which is why PR plans use `-lock=false`.
+
+Terraform state lives in `s3://manara-todo-tfstate-<account-id>/infra/terraform.tfstate` with native S3 locking (`use_lockfile`, no DynamoDB table).
+
+### Repository variables
+
+Set these under Settings, Secrets and variables, Actions, Variables.
+
+| Variable | Purpose |
+|---|---|
+| `AWS_PLAN_ROLE_ARN` | ARN of `manara-todo-gha-plan` |
+| `AWS_DEPLOY_ROLE_ARN` | ARN of `manara-todo-gha-deploy` |
+| `ALERT_EMAIL` | Budget alert address (`alert_email`) |
+| `ENABLE_WAF` | `true` or `false` (`enable_waf`); defaults to `false` in CI when unset |
+| `ENABLE_API_CACHE` | `true` or `false` (`enable_api_cache`); defaults to `false` in CI when unset |
+
+The PR plan reflects only these repository variables and the defaults, not your local `terraform.tfvars`, so it can differ from what you see running `plan` locally. Note that the deploy applies the same values: with `ENABLE_WAF` and `ENABLE_API_CACHE` unset, CI deploys without WAF and the cache.
+
+### One-time bootstrap
+
+The `bootstrap/` stack creates the state bucket, the GitHub OIDC provider and the two roles. It uses local state (gitignored) and is run once by hand:
+
+```bash
+export AWS_PROFILE=<your-profile>
+terraform -chdir=bootstrap init && terraform -chdir=bootstrap apply
+```
+
+Then point `infra/` at the remote state. With an existing local state, migrate it; on a fresh checkout just init:
+
+```bash
+terraform -chdir=infra init -migrate-state   # existing local state
+terraform -chdir=infra init                  # fresh
+```
+
+Finally set the repository variables above from the bootstrap outputs.
+
+### Branch protection
+
+Recommended: Settings, Branches, add a rule for `main` that requires a pull request and the status checks from the `checks` jobs (`backend-tests`, `frontend-build`, `terraform-static`) before merging.
+
 ## Security notes
 
 - **ID token, not access token.** The Cognito User Pools authorizer validates ID tokens directly and puts the verified claims (including `sub`) in the request context. Access tokens only work with the authorizer when scopes are configured, and carry no email claims. The Lambda trusts `requestContext.authorizer.claims.sub` and never a client-supplied user id.
@@ -168,9 +234,12 @@ Both default to `true`. Destroy the stack when the review is over.
 
 ## Deploy
 
-Prerequisites: Terraform 1.5+, AWS CLI v2 (logged in to the target account), Node 20+, Python 3.12.
+Pushes to `main` deploy automatically (see CI/CD above). To deploy from your machine:
+
+Prerequisites: Terraform 1.10+, AWS CLI v2 (logged in to the target account), Node 20+, Python 3.12.
 
 ```bash
+export AWS_PROFILE=<your-profile>
 cp infra/terraform.tfvars.example infra/terraform.tfvars   # set alert_email
 terraform -chdir=infra init
 terraform -chdir=infra apply
@@ -178,7 +247,7 @@ terraform -chdir=infra apply
 terraform -chdir=infra output app_url
 ```
 
-The AWS profile defaults to `manara-free` (variable `aws_profile`; the script honors `AWS_PROFILE`).
+State is stored remotely in S3 (see the bootstrap steps above for the first-time setup). `deploy_frontend.sh` honors `AWS_PROFILE` (default `manara-free`) outside GitHub Actions.
 
 Destroy everything: `terraform -chdir=infra destroy`.
 
@@ -206,6 +275,8 @@ Create the venv first with `python3.12 -m venv backend/.venv && backend/.venv/bi
 │   ├── src/todo_app/       # Lambda code: handlers/, repository, models, stream translation
 │   └── tests/              # pytest unit tests (moto)
 ├── frontend/               # Vite + React SPA (Cognito Hosted UI via react-oidc-context)
+├── .github/workflows/      # ci.yml (PR), deploy.yml (main), checks.yml (shared)
+├── bootstrap/              # Terraform state bucket + GitHub OIDC roles (run once)
 ├── infra/                  # Terraform: apigateway, cloudfront, cognito, dynamodb, iam, lambda, waf, budget, frontend
 ├── scripts/                # deploy_frontend.sh, smoke_test.py, waf_rate_test.sh
 ├── docs/
