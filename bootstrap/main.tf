@@ -13,6 +13,10 @@ locals {
   account_id = "609417966933"
   repo       = "mustafa-premiera/api"
   oidc_host  = "token.actions.githubusercontent.com"
+
+  # GitHub now issues subjects with immutable owner/repo IDs
+  # (repo:<owner>@<owner_id>/<repo>@<repo_id>:...); accept both that and the legacy form.
+  repo_subjects = [local.repo, "mustafa-premiera@343404294/api@1428567674"]
 }
 
 resource "aws_s3_bucket" "state" {
@@ -75,7 +79,7 @@ data "aws_iam_policy_document" "plan_trust" {
     condition {
       test     = "StringEquals"
       variable = "${local.oidc_host}:sub"
-      values   = ["repo:${local.repo}:pull_request"]
+      values   = [for r in local.repo_subjects : "repo:${r}:pull_request"]
     }
   }
 }
@@ -98,7 +102,7 @@ data "aws_iam_policy_document" "deploy_trust" {
     condition {
       test     = "StringEquals"
       variable = "${local.oidc_host}:sub"
-      values   = ["repo:${local.repo}:ref:refs/heads/main"]
+      values   = [for r in local.repo_subjects : "repo:${r}:ref:refs/heads/main"]
     }
   }
 }
