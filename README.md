@@ -22,6 +22,22 @@ Source for the diagram: [`docs/architecture/diagram.py`](docs/architecture/diagr
 
 Direct calls to the API Gateway URL (`https://wlolz7mdl1.execute-api.us-east-1.amazonaws.com/api`) are rejected unless they carry both a valid ID token and the API key. The key is only known to CloudFront, so use the CloudFront URL (see the status codes under API Gateway below).
 
+## Screenshots
+
+Taken from the app running against the deployed backend (Cognito, API Gateway, Lambda, DynamoDB and Streams), signed in as a demo user.
+
+| Signed out | Cognito Hosted UI |
+|---|---|
+| ![Signed-out landing page](docs/screenshots/01-sign-in.png) | ![Cognito Hosted UI sign-in](docs/screenshots/02-cognito-hosted-ui.png) |
+
+**Signed in.** Three to-dos, one completed. The activity panel is filled by the DynamoDB Streams processor: the CREATED, COMPLETED and DELETED entries each appear a few seconds after the change.
+
+![To-do list with the DynamoDB Streams activity panel](docs/screenshots/03-todos-and-activity.png)
+
+| Filter: Done (served by the `StatusDueIndex` GSI) | Phone width |
+|---|---|
+| ![Done filter](docs/screenshots/04-filter-done.png) | <img src="docs/screenshots/05-mobile.png" alt="Phone-width layout" width="260"> |
+
 ## Request path
 
 1. The browser requests the CloudFront URL. The **WAF** web ACL attached to the distribution inspects every request first.
