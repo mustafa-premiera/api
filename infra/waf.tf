@@ -1,6 +1,12 @@
 resource "aws_wafv2_web_acl" "main" {
   count = var.enable_waf ? 1 : 0
 
+  # Detach from CloudFront before deleting: without this, turning enable_waf off
+  # destroys the ACL first and AWS rejects it (WAFAssociatedItemException).
+  lifecycle {
+    create_before_destroy = true
+  }
+
   name  = "${var.project}-cloudfront"
   scope = "CLOUDFRONT"
 
