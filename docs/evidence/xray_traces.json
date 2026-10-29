@@ -1,0 +1,68 @@
+{
+  "trace_id": "1-6ae29c40-7d0a886c09f678772772c1b8",
+  "duration_s": 1.331,
+  "segments": [
+    [
+      {
+        "depth": 0,
+        "name": "manara-todo-create_todo",
+        "origin": "AWS::Lambda",
+        "duration_s": 1.253
+      }
+    ],
+    [
+      {
+        "depth": 0,
+        "name": "manara-todo/api",
+        "origin": "AWS::ApiGateway::Stage",
+        "duration_s": 1.331
+      },
+      {
+        "depth": 1,
+        "name": "Lambda",
+        "origin": null,
+        "duration_s": 1.0
+      }
+    ],
+    [
+      {
+        "depth": 0,
+        "name": "manara-todo-create_todo",
+        "origin": "AWS::Lambda::Function",
+        "duration_s": 0.1656
+      },
+      {
+        "depth": 1,
+        "name": "Overhead",
+        "origin": null,
+        "duration_s": 0.0008
+      },
+      {
+        "depth": 1,
+        "name": "## handler",
+        "origin": null,
+        "duration_s": 0.1627
+      },
+      {
+        "depth": 2,
+        "name": "DynamoDB",
+        "origin": null,
+        "duration_s": 0.162
+      },
+      {
+        "depth": 1,
+        "name": "Init",
+        "origin": null,
+        "duration_s": 0.652
+      }
+    ],
+    [
+      {
+        "depth": 0,
+        "name": "DynamoDB",
+        "origin": "AWS::DynamoDB::Table",
+        "duration_s": 0.162
+      }
+    ]
+  ]
+}

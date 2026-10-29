@@ -5,7 +5,7 @@ A per-user to-do app built for the Manara "Becoming a Solutions Architect" Proje
 [![CI](https://github.com/mustafa-premiera/api/actions/workflows/ci.yml/badge.svg)](https://github.com/mustafa-premiera/api/actions/workflows/ci.yml)
 [![Deploy](https://github.com/mustafa-premiera/api/actions/workflows/deploy.yml/badge.svg)](https://github.com/mustafa-premiera/api/actions/workflows/deploy.yml)
 
-**Live app:** https://<cloudfront-domain>/ <!-- LIVE_URL -->
+**Live app:** https://do5ec8al4bb0z.cloudfront.net/
 
 ![Architecture](docs/architecture/architecture.png)
 
@@ -63,7 +63,7 @@ API routes (all require a Cognito token and the API key):
 
 ## Services and how to verify each
 
-Evidence from the deployed app is saved under `docs/evidence/`. Run `scripts/smoke_test.py` to repeat the end-to-end test (it creates a temporary Cognito user through the `smoke` app client, calls every route, and checks isolation between two users) and `scripts/waf_rate_test.sh` to trigger the WAF rate limit. Use `AWS_PROFILE` for your own profile in the commands below.
+Evidence from the deployed app is saved under `docs/evidence/`. Run `scripts/smoke_test.py` to repeat the end-to-end test (it creates two temporary Cognito users through the `smoke` app client, calls every route through CloudFront, checks isolation between the two users, and deletes the users and their data afterwards) and `scripts/waf_rate_test.sh` to trigger the WAF rate limit. Use `AWS_PROFILE` for your own profile in the commands below.
 
 ### CloudFront
 - One distribution, two origins. Default behavior: S3 (`Managed-CachingOptimized`). `/api/*`: API Gateway with `Managed-CachingDisabled`, all methods allowed, viewer headers forwarded. HTTPS only (HTTP redirects). Price class 100.
@@ -88,7 +88,7 @@ Web ACL `manara-todo-cloudfront`, scope CLOUDFRONT, default action allow. Rules 
 
 Bot Control is not enabled because it costs about $10/month extra; the IP reputation and known-bad-inputs groups cover the basic bot and malicious-client case.
 
-Verify: Console, WAF & Shield, Web ACLs (scope: Global/CloudFront), `manara-todo-cloudfront`, Rules and the sampled-requests view. Run `scripts/waf_rate_test.sh` and compare with `docs/evidence/waf_rate_test.txt` (requests start returning 429).
+Verify: Console, WAF & Shield, Web ACLs (scope: Global/CloudFront), `manara-todo-cloudfront`, Rules and the sampled-requests view. Run `scripts/waf_rate_test.sh` and compare with `docs/evidence/waf_rate_test.txt`: WAF evaluates the rate with a 30–60 s lag, so the first burst may still pass and a second burst a minute later returns 429. Afterwards your IP stays blocked on `/api/` for up to 5 minutes.
 
 ### API Gateway
 - REST API `manara-todo`, regional, stage `api`, so CloudFront `/api/todos` maps straight to the stage.
@@ -172,7 +172,7 @@ GitHub Actions checks every pull request and deploys `main` with Terraform. No A
 3. `terraform apply -auto-approve` updates the infrastructure.
 4. `scripts/deploy_frontend.sh` builds the SPA, syncs it to S3 and invalidates CloudFront. The app URL is written to the job summary.
 
-Deploys are serialized (`concurrency: deploy-main`, never cancelled mid-apply). Until the AWS account is verified for CloudFront, the deploy apply fails at the CloudFront distribution; resources that do not depend on it are still applied.
+Deploys are serialized (`concurrency: deploy-main`, never cancelled mid-apply).
 
 ### OIDC roles
 
