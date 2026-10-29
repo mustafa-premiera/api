@@ -28,6 +28,8 @@ class TodoRepository:
             resp = self.table.query(KeyConditionExpression=cond, **kwargs)
             items.extend(resp["Items"])
             if "LastEvaluatedKey" not in resp:
+                if status is None:
+                    items.sort(key=lambda i: i["createdAt"], reverse=True)
                 return items
             kwargs["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
 

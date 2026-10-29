@@ -53,7 +53,6 @@ resource "aws_iam_role_policy" "read" {
 data "aws_iam_policy_document" "write" {
   statement {
     actions = [
-      "dynamodb:Query",
       "dynamodb:GetItem",
       "dynamodb:PutItem",
       "dynamodb:UpdateItem",

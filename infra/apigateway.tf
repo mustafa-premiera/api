@@ -222,6 +222,7 @@ resource "aws_api_gateway_method_settings" "cached" {
     throttling_rate_limit                      = 20
     throttling_burst_limit                     = 40
     caching_enabled                            = var.enable_api_cache
+    cache_data_encrypted                       = true
     cache_ttl_in_seconds                       = var.api_cache_ttl_seconds
     require_authorization_for_cache_control    = true
     unauthorized_cache_control_header_strategy = "SUCCEED_WITH_RESPONSE_HEADER"
@@ -249,7 +250,7 @@ resource "aws_api_gateway_usage_plan" "main" {
   }
 
   quota_settings {
-    limit  = 10000
+    limit  = 100000
     period = "DAY"
   }
 }

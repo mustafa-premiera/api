@@ -30,6 +30,16 @@ def test_list_isolated_by_user(repo):
     assert [i["todoId"] for i in repo.list("u1")] == [a["todoId"]]
 
 
+def test_list_all_newest_first(repo, monkeypatch):
+    from todo_app import repository
+
+    ids = []
+    for n, ts in enumerate(["2026-10-01T00:00:00+00:00", "2026-10-03T00:00:00+00:00", "2026-10-02T00:00:00+00:00"]):
+        monkeypatch.setattr(repository, "_now", lambda ts=ts: ts)
+        ids.append(repo.create("u1", fields(f"t{n}"))["todoId"])
+    assert [i["todoId"] for i in repo.list("u1")] == [ids[1], ids[2], ids[0]]
+
+
 def test_list_by_status_ordered_by_due(repo):
     late = repo.create("u1", fields("late", due="2026-12-01"))
     none = repo.create("u1", fields("none"))

@@ -14,7 +14,11 @@ def img(title, status="OPEN"):
 
 
 def rec(name, eid="e1", **images):
-    return {"eventID": eid, "eventName": name, "dynamodb": {"Keys": KEYS, **images}}
+    return {
+        "eventID": eid,
+        "eventName": name,
+        "dynamodb": {"Keys": KEYS, "SequenceNumber": f"seq-{eid}", **images},
+    }
 
 
 def check(out, action, title):
@@ -51,9 +55,13 @@ def test_handler_partial_batch(tables):
 
     m = importlib.reload(stream_processor)
     good = rec("INSERT", eid="good", NewImage=img("A"))
-    bad = {"eventID": "bad", "eventName": "INSERT", "dynamodb": {"NewImage": img("B")}}
+    bad = {
+        "eventID": "bad",
+        "eventName": "INSERT",
+        "dynamodb": {"SequenceNumber": "seq-bad", "NewImage": img("B")},
+    }
     assert m.handler({"Records": [good, bad]}, None) == {
-        "batchItemFailures": [{"itemIdentifier": "bad"}]
+        "batchItemFailures": [{"itemIdentifier": "seq-bad"}]
     }
     items = tables[1].scan()["Items"]
     assert len(items) == 1 and items[0]["sk"].endswith("#good")
