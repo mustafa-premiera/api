@@ -93,7 +93,7 @@ Verify: Console, WAF & Shield, Web ACLs (scope: Global/CloudFront), `manara-todo
 ### API Gateway
 - REST API `manara-todo`, regional, stage `api`, so CloudFront `/api/todos` maps straight to the stage.
 - Cognito User Pools authorizer on every method; every method requires an API key.
-- Usage plan `manara-todo-cloudfront`: 20 requests/s rate, 40 burst, 10,000 requests/day quota. Method throttling is the same 20/40.
+- Usage plan `manara-todo-cloudfront`: 20 requests/s rate, 40 burst, 100,000 requests/day quota (shared by all users, since CloudFront uses one key). Method throttling is the same 20/40.
 - Cache cluster 0.5 GB, TTL 60 s, on `GET /todos` and `GET /todos/{id}`. The cache key includes the `Authorization` header, and `status` / `v` (or `id`) parameters.
 - X-Ray tracing and JSON access logs (including `xrayTraceId` and the user's `sub`) are on, retained 14 days.
 - Verify: Console, API Gateway, `manara-todo`, Stages, `api` (Settings shows the cache and X-Ray), Authorizers, Usage Plans. Direct calls to the `execute-api` URL behave as follows (measured on the live API):

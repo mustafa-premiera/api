@@ -250,7 +250,7 @@ resource "aws_api_gateway_usage_plan" "main" {
   }
 
   quota_settings {
-    limit  = 10000
+    limit  = 100000
     period = "DAY"
   }
 }
