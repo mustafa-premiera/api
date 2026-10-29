@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "react-oidc-context";
 import { createApi } from "./api.js";
+import { withAdded, withReplaced, withUpdated, without } from "./todoList.js";
 
 const FILTERS = [
   ["", "All"],
@@ -53,6 +54,7 @@ function Todos({ auth, config }) {
   const [dueDate, setDueDate] = useState("");
   const [editing, setEditing] = useState(null); // {id, text}
   const timer = useRef(null);
+  const nextTempId = useRef(0);
 
   const loadTodos = useCallback(
     () => api.listTodos(filter || undefined).then((d) => setTodos(d.items || [])).catch((e) => setError(e.message)),
@@ -72,15 +74,20 @@ function Todos({ auth, config }) {
     timer.current = setTimeout(loadActivity, 3000);
   };
 
-  const write = async (fn) => {
+  // Optimistic writes: callers update the list first, then this sends the request.
+  // On success the server's copy settles the item; on failure the list is reloaded.
+  const sync = async (request, onSaved) => {
     try {
-      await fn();
-      await loadTodos();
+      const saved = await request();
+      if (onSaved) onSaved(saved);
       scheduleActivity();
     } catch (e) {
       setError(e.message);
+      loadTodos();
     }
   };
+
+  const settle = (id) => (saved) => setTodos((ts) => withReplaced(ts, id, saved, filter));
 
   const add = (e) => {
     e.preventDefault();
@@ -88,11 +95,21 @@ function Todos({ auth, config }) {
     if (!t) return;
     const fields = { title: t };
     if (dueDate) fields.dueDate = dueDate;
-    write(async () => {
-      await api.createTodo(fields);
-      setTitle("");
-      setDueDate("");
-    });
+    const id = `tmp-${++nextTempId.current}`;
+    setTodos((ts) => withAdded(ts, { todoId: id, status: "OPEN", dueDate: null, ...fields, pending: true }, filter));
+    setTitle("");
+    setDueDate("");
+    sync(() => api.createTodo(fields), settle(id));
+  };
+
+  const update = (id, changes) => {
+    setTodos((ts) => withUpdated(ts, id, changes, filter));
+    sync(() => api.updateTodo(id, changes), settle(id));
+  };
+
+  const remove = (id) => {
+    setTodos((ts) => without(ts, id));
+    sync(() => api.deleteTodo(id));
   };
 
   const saveEdit = () => {
@@ -101,7 +118,7 @@ function Todos({ auth, config }) {
     const t = text.trim();
     const current = todos.find((x) => x.todoId === id);
     if (!t || !current || t === current.title) return;
-    write(() => api.updateTodo(id, { title: t }));
+    update(id, { title: t });
   };
 
   const signOut = async () => {
@@ -142,12 +159,13 @@ function Todos({ auth, config }) {
       <ul className="todos">
         {todos.length === 0 && <li className="empty">Nothing here yet.</li>}
         {todos.map((t) => (
-          <li key={t.todoId} className={t.status === "DONE" ? "done" : ""}>
+          <li key={t.todoId} className={[t.status === "DONE" && "done", t.pending && "pending"].filter(Boolean).join(" ")}>
             <input
               type="checkbox"
               checked={t.status === "DONE"}
+              disabled={t.pending}
               aria-label={`Mark "${t.title}" done`}
-              onChange={() => write(() => api.updateTodo(t.todoId, { status: t.status === "DONE" ? "OPEN" : "DONE" }))}
+              onChange={() => update(t.todoId, { status: t.status === "DONE" ? "OPEN" : "DONE" })}
             />
             {editing && editing.id === t.todoId ? (
               <input
@@ -162,12 +180,12 @@ function Todos({ auth, config }) {
                 }}
               />
             ) : (
-              <span className="title" title="Click to edit" onClick={() => setEditing({ id: t.todoId, text: t.title })}>
+              <span className="title" title="Click to edit" onClick={() => !t.pending && setEditing({ id: t.todoId, text: t.title })}>
                 {t.title}
               </span>
             )}
             {t.dueDate && <span className="due">{t.dueDate}</span>}
-            <button className="danger" aria-label={`Delete "${t.title}"`} onClick={() => write(() => api.deleteTodo(t.todoId))}>Delete</button>
+            <button className="danger" disabled={t.pending} aria-label={`Delete "${t.title}"`} onClick={() => remove(t.todoId)}>Delete</button>
           </li>
         ))}
       </ul>
