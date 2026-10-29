@@ -11,4 +11,6 @@ npm --prefix frontend ci
 npm --prefix frontend run build
 
 aws s3 sync frontend/dist "s3://$BUCKET" --delete --exclude config.json
+# Let browsers revalidate index.html; hashed assets keep default caching.
+aws s3 cp frontend/dist/index.html "s3://$BUCKET/index.html" --cache-control "no-cache" --content-type "text/html"
 aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths '/*'

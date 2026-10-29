@@ -22,5 +22,8 @@ def handler(event, context):
                 repo.record(item)
         except Exception:
             logger.exception("failed to process stream record")
-            failures.append({"itemIdentifier": record.get("eventID")})
+            # Streams checkpoints on SequenceNumber; a record without one cannot be reported, only logged.
+            seq = (record.get("dynamodb") or {}).get("SequenceNumber")
+            if seq is not None:
+                failures.append({"itemIdentifier": seq})
     return {"batchItemFailures": failures}

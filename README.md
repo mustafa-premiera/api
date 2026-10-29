@@ -15,7 +15,7 @@ Source for the diagram: [`docs/architecture/diagram.py`](docs/architecture/diagr
 
 1. Open the live app URL above (region `us-east-1`).
 2. Click **Sign in**. You are redirected to the Cognito Hosted UI (`https://manara-todo-wc1huz.auth.us-east-1.amazoncognito.com`). Choose **Sign up**, enter any email and a password (8+ characters, upper and lower case, a digit).
-3. Cognito emails you a verification code. Enter it, then sign in.
+3. Cognito emails you a verification code. It comes from `no-reply@verificationemail.com` and may land in spam; Cognito's default sender is limited to about 50 emails per day. Enter the code, then sign in.
 4. Add a to-do (optionally with a due date), mark it done, edit it, then delete it.
 5. Watch **Recent activity (DynamoDB Streams)** on the page. Each change appears there a moment later. It is written by a separate Lambda that consumes the table's stream, so seeing it proves Streams works end to end.
 6. Sign up a second user in a private window. It sees an empty list: each user only ever sees their own items, including through the API cache.
@@ -124,7 +124,7 @@ Verify: Console, WAF & Shield, Web ACLs (scope: Global/CloudFront), `manara-todo
 | Role | Used by | DynamoDB permissions |
 |---|---|---|
 | read | `list_todos`, `get_todo`, `list_activity` | `Query`, `GetItem` on todos and its indexes; `Query` on activity |
-| write | `create_todo`, `update_todo`, `delete_todo` | `Query`, `GetItem`, `PutItem`, `UpdateItem`, `DeleteItem` on todos only |
+| write | `create_todo`, `update_todo`, `delete_todo` | `GetItem`, `PutItem`, `UpdateItem`, `DeleteItem` on todos only |
 | stream | `stream_processor` | read the todos stream; `PutItem` on activity |
 
 All roles also have basic logging and X-Ray write permissions.
@@ -246,7 +246,7 @@ enable_waf       = false
 enable_api_cache = false
 ```
 
-Both default to `true`. Destroy the stack when the review is over.
+Both default to `true`. With both on, the expected steady-state cost is about $25–26/month (WAF web ACL $5 + 6 rules/groups × $1 + requests, plus the API cache at about $14.60/month); everything else is about $0 at review traffic. The $10/month budget alert will therefore fire at 50% after roughly 6 days and at 100% after roughly 12 days. After grading, set `enable_waf` and `enable_api_cache` to `false` (the `ENABLE_WAF` / `ENABLE_API_CACHE` repository variables if you deploy through CI) or run `terraform -chdir=infra destroy` to stop the charges.
 
 ## Deploy
 
