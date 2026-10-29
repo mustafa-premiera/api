@@ -1,0 +1,19 @@
+PASS 1 no token -> 401
+PASS 2 garbage token -> 401
+PASS 3 direct to API GW without key -> 403
+PASS 4a A create -> 201
+PASS 4b A list (fresh v) includes item
+PASS 5a B list is empty (cache isolation)
+PASS 5b B GET of A's id -> 404
+PASS 6a A PUT status DONE -> 200
+PASS 6b A DELETE -> 204
+PASS 7 activity shows CREATED, COMPLETED, DELETED within 20s
+PASS 8 SQLi query string -> 403
+PASS 9 two identical GETs same v -> 200
+INFO 9 CacheHitCount not yet available (CloudWatch lag)
+-- cleanup
+deleted 3 activity rows for a smoke user
+deleted 0 activity rows for a smoke user
+deleted 2 smoke users
+
+All checks passed

@@ -1,0 +1,12 @@
+# run 2026-10-29T01:07:55Z
+Sending 400 GETs to https://do5ec8al4bb0z.cloudfront.net/api/todos
+HTTP 401: 400
+
+Note: WAF evaluates the rate limit with ~30-60 s delay; after this test the caller's IP is rate-limited on /api/ for up to ~5 minutes (do not run smoke_test.py until the block lifts).
+
+# second run ~1 minute later: N=300 scripts/waf_rate_test.sh
+Sending 300 GETs to https://do5ec8al4bb0z.cloudfront.net/api/todos
+HTTP 429: 300
+
+Result: the first 400 requests all returned 401 (WAF's rate counter had not yet
+tripped; evaluation lags ~30-60 s). The follow-up run was blocked by WAF with 429 on every request.
